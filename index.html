@@ -1,31 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AetherInterface | Æ-Lens</title>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <title>Æ-Lens | Unified Vision</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        #canvas_output { width: 100vw; height: 100vh; object-fit: cover; }
-        #video_input { display: none; }
-        #overlay {
-            position: absolute; top: 20px; left: 20px;
-            color: #0ff; background: rgba(0, 40, 40, 0.6);
-            padding: 15px; border-left: 4px solid #0ff;
-            backdrop-filter: blur(10px); pointer-events: none;
-            letter-spacing: 1px; font-size: 12px;
-        }
-        .status-dot { display: inline-block; width: 8px; height: 8px; background: #0f0; border-radius: 50%; margin-right: 5px; box-shadow: 0 0 10px #0f0; }
+        body { margin: 0; background: #000; color: #0ff; font-family: monospace; overflow: hidden; }
+        #canvas_output { width: 100vw; height: 100vh; }
+        #ui { position: absolute; top: 20px; left: 20px; background: rgba(0,20,20,0.7); padding: 10px; border: 1px solid #0ff; }
     </style>
 </head>
 <body>
-    <div id="overlay">
-        <div class="status-dot"></div> Æ-LENS: SPATIAL MONITOR ACTIVE<br>
-        <small style="color: rgba(0,255,255,0.6)">ZERO-JITTER STABILIZATION: ON</small>
-    </div>
-    <video id="video_input" playsinline></video>
+    <div id="ui">Æ-LENS STATUS: ACTIVE <br> MODE: OBJECT + MOTION + HUMAN</div>
+    <video id="video_input" style="display:none" autoplay playsinline></video>
     <canvas id="canvas_output"></canvas>
     <script src="script.js"></script>
 </body>
