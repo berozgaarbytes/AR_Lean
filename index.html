@@ -2,28 +2,29 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AetherInterface | Æ Spatial OS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AetherInterface | Æ-Lens</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
-        #controls { position: absolute; top: 15px; left: 15px; z-index: 100; display: flex; gap: 8px; }
-        button { background: rgba(0, 20, 20, 0.8); border: 1px solid #0ff; color: #0ff; padding: 8px 15px; cursor: pointer; text-transform: uppercase; font-size: 10px; letter-spacing: 1px; }
-        button:hover { background: #0ff; color: #000; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #canvas_output { width: 100vw; height: 100vh; object-fit: cover; }
         #video_input { display: none; }
-        #canvas_output { width: 100vw; height: 100vh; display: block; }
-        #hud_overlay { position: absolute; bottom: 15px; left: 15px; color: #0f0; font-size: 12px; pointer-events: none; background: rgba(0,0,0,0.5); padding: 10px; border-left: 3px solid #0f0; }
+        #overlay {
+            position: absolute; top: 20px; left: 20px;
+            color: #0ff; background: rgba(0, 40, 40, 0.6);
+            padding: 15px; border-left: 4px solid #0ff;
+            backdrop-filter: blur(10px); pointer-events: none;
+            letter-spacing: 1px; font-size: 12px;
+        }
+        .status-dot { display: inline-block; width: 8px; height: 8px; background: #0f0; border-radius: 50%; margin-right: 5px; box-shadow: 0 0 10px #0f0; }
     </style>
 </head>
 <body>
-    <div id="controls">
-        <button onclick="toggleCamera()">🔄 Flip View</button>
-        <button onclick="toggleQR()">🔍 QR Scan Mode</button>
-        <button onclick="æInput=''">🗑️ Clear Input</button>
+    <div id="overlay">
+        <div class="status-dot"></div> Æ-LENS: SPATIAL MONITOR ACTIVE<br>
+        <small style="color: rgba(0,255,255,0.6)">ZERO-JITTER STABILIZATION: ON</small>
     </div>
-    <div id="hud_overlay">Æ_OS_v2.0: STANDBY...</div>
     <video id="video_input" playsinline></video>
     <canvas id="canvas_output"></canvas>
     <script src="script.js"></script>
