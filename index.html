@@ -6,26 +6,21 @@
     <title>Æ-Sentry | Spatial Vision</title>
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: #0ff; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: monospace; color: #0ff; }
         #canvas_output { width: 100vw; height: 100vh; object-fit: cover; }
         #video_input { display: none; }
-        #ui_layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; background: rgba(0,0,0,0.8); }
-        #status_text { margin-bottom: 20px; text-align: center; font-size: 14px; text-shadow: 0 0 10px #0ff; }
-        .btn-æ { background: none; border: 2px solid #0ff; color: #0ff; padding: 15px 40px; font-size: 18px; cursor: pointer; transition: 0.3s; box-shadow: 0 0 15px rgba(0,255,255,0.3); }
-        .btn-æ:active { background: #0ff; color: #000; }
-        #hud { position: absolute; top: 20px; left: 20px; pointer-events: none; display: none; }
+        #ui_layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; background: rgba(0,0,0,0.9); }
+        #status_text { margin-bottom: 20px; text-align: center; color: #0ff; }
+        .btn-init { background: #0ff; color: #000; border: none; padding: 15px 30px; font-weight: bold; cursor: pointer; border-radius: 5px; box-shadow: 0 0 20px #0ff; }
     </style>
 </head>
 <body>
     <div id="ui_layer">
-        <div id="status_text">Æ-SENTRY SYSTEM v2.0<br>Commercial Ready | Apache 2.0</div>
-        <button class="btn-æ" onclick="bootSystem()">INITIATE SYSTEM</button>
+        <div id="status_text">SYSTEM OFFLINE<br>READY FOR BOOT</div>
+        <button class="btn-init" onclick="bootSystem()">BOOT Æ-SENTRY</button>
     </div>
-
-    <div id="hud">SYSTEM_READY // OBJECT_DETECTION_LIVE</div>
     <video id="video_input" autoplay playsinline muted></video>
     <canvas id="canvas_output"></canvas>
-    
     <script src="script.js"></script>
 </body>
 </html>
