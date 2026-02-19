@@ -1,92 +1,84 @@
 const video = document.getElementById('video_input');
 const canvas = document.getElementById('canvas_output');
 const ctx = canvas.getContext('2d');
-const status = document.getElementById('status');
+const uiLayer = document.getElementById('ui_layer');
+const statusText = document.getElementById('status_text');
+const hud = document.getElementById('hud');
 
-let session;
-const MODEL_SIZE = 416; // Change to 640 if your model is 640
+let session = null;
 
-async function initÆ() {
-    status.innerText = "Æ-SENTRY: LOADING WASM CORE...";
+async function bootSystem() {
+    statusText.innerText = "SYSTEM: ALLOCATING WASM RESOURCES...";
+    
     try {
-        // Force the WASM path to the CDN to avoid local file errors
+        // 1. Point to the WASM worker files on the CDN
         ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
-        
-        // Load the model from your GitHub repo folder
+
+        // 2. Load Model (Make sure yolox_nano.onnx is in your GitHub folder!)
         session = await ort.InferenceSession.create('./yolox_nano.onnx', {
-            executionProviders: ['wasm']
+            executionProviders: ['wasm'],
+            graphOptimizationLevel: 'all'
         });
+
+        statusText.innerText = "SYSTEM: ACQUIRING OPTICAL FEED...";
         
-        status.innerText = "Æ-SENTRY: ONLINE. ACCESSING LENS...";
-        startCamera();
-    } catch (e) {
-        status.innerText = "INITIALIZATION ERROR: " + e.message;
-        console.error(e);
+        // 3. Trigger Camera (Must be done inside a user-click event!)
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { 
+                facingMode: 'environment', // BACK CAMERA
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            },
+            audio: false
+        });
+
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+            video.play();
+            // Hide the boot screen and show the HUD
+            uiLayer.style.display = 'none';
+            hud.style.display = 'block';
+            renderLoop();
+        };
+
+    } catch (err) {
+        statusText.innerHTML = `<span style="color:red">BOOT_FAILURE: ${err.message}</span><br>Check if HTTPS is enabled.`;
+        console.error(err);
     }
 }
 
-function startCamera() {
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-        .then(stream => {
-            video.srcObject = stream;
-            video.onloadedmetadata = () => {
-                video.play();
-                renderLoop();
-            };
-        });
-}
-
-async function renderLoop() {
+function renderLoop() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     
-    // Draw reality
+    // Draw Camera Feed
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Prepare YOLOX Input
-    const tensor = await prepareInput(video);
-
-    try {
-        const output = await session.run({ images: tensor });
-        // The 'output' contains raw numbers. For a demo, let's pulse the HUD 
-        // to show the AI is "thinking" in real-time.
-        drawIndustrialOverlay();
-    } catch (e) {
-        console.warn("Inference skipped: ", e.message);
-    }
+    // --- AR OVERLAY ---
+    drawSentryHUD();
 
     requestAnimationFrame(renderLoop);
 }
 
-async function prepareInput(source) {
-    // Create an offscreen canvas to resize the image to 416x416
-    const offscreen = new OffscreenCanvas(MODEL_SIZE, MODEL_SIZE);
-    const oCtx = offscreen.getContext('2d');
-    oCtx.drawImage(source, 0, 0, MODEL_SIZE, MODEL_SIZE);
-    
-    const imgData = oCtx.getImageData(0, 0, MODEL_SIZE, MODEL_SIZE);
-    const { data } = imgData;
-    
-    // Float32Array for [1, 3, 416, 416] (N, C, H, W)
-    const floatData = new Float32Array(3 * MODEL_SIZE * MODEL_SIZE);
-    
-    // Normalize and Transpose (RGBRGB -> RRR...GGG...BBB...)
-    for (let i = 0; i < data.length / 4; i++) {
-        floatData[i] = data[i * 4] / 255.0; // R
-        floatData[i + MODEL_SIZE * MODEL_SIZE] = data[i * 4 + 1] / 255.0; // G
-        floatData[i + 2 * MODEL_SIZE * MODEL_SIZE] = data[i * 4 + 2] / 255.0; // B
-    }
-    
-    return new ort.Tensor('float32', floatData, [1, 3, MODEL_SIZE, MODEL_SIZE]);
-}
+function drawSentryHUD() {
+    const w = canvas.width;
+    const h = canvas.height;
 
-function drawIndustrialOverlay() {
+    // Scanline effect
+    const scanY = (Date.now() / 15) % h;
+    ctx.strokeStyle = "rgba(0, 255, 255, 0.2)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, scanY);
+    ctx.lineTo(w, scanY);
+    ctx.stroke();
+
+    // Corner brackets
     ctx.strokeStyle = "#0ff";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(50, 50, canvas.width - 100, canvas.height - 100);
-    
-    // Scanline Effect
-    const scanlineY = (Date.now() / 10) % canvas.height;
-    ctx.fillStyle = "rgba(0, 255, 255, 0.1)";
-    ctx.fillRect(0, scanlineY, canvas.width, 2);
+    ctx.lineWidth = 3;
+    const bSize = 40;
+    // Top Left
+    ctx.beginPath(); ctx.moveTo(50, 50+bSize); ctx.lineTo(50, 50); ctx.lineTo(50+bSize, 50); ctx.stroke();
+    // Top Right
+    ctx.beginPath(); ctx.moveTo(w-50-bSize, 50); ctx.lineTo(w-50, 50); ctx.lineTo(w-50, 50+bSize); ctx.stroke();
 }
