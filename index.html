@@ -3,23 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Æ-Sentry Pro | Stabilized</title>
+    <title>Æ-Sentry Pro | Self-Healing Vision</title>
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/ort.min.js"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: monospace; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: #0ff; }
         #canvas_output { width: 100vw; height: 100vh; object-fit: cover; }
         #video_input { display: none; }
-        #gui { position: absolute; top: 10px; left: 10px; color: #0ff; z-index: 100; pointer-events: none; }
         #boot_layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; background: #000; }
-        .btn-boot { background: #0ff; color: #000; border: none; padding: 20px 40px; font-weight: bold; cursor: pointer; }
+        .btn-boot { background: none; border: 2px solid #0ff; color: #0ff; padding: 20px 40px; font-size: 18px; cursor: pointer; box-shadow: 0 0 15px #0ff; }
+        #status { margin-top: 20px; font-size: 11px; text-transform: uppercase; text-align: center; }
     </style>
 </head>
 <body>
     <div id="boot_layer">
-        <button class="btn-boot" onclick="bootSystem()">ACTIVATE SYSTEM</button>
-        <div id="status" style="color:#0ff; margin-top:10px;">ENGINE: READY</div>
+        <button class="btn-boot" onclick="bootSystem()">INITIATE LENS</button>
+        <div id="status">ENGINE: STANDBY<br>VIBROMETRY: READY</div>
     </div>
-    <div id="gui">Æ-SENTRY_PRO // VIBROMETRY_ACTIVE</div>
     <video id="video_input" autoplay playsinline muted></video>
     <canvas id="canvas_output"></canvas>
     <script src="script.js"></script>
