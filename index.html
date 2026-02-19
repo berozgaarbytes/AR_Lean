@@ -1,18 +1,19 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Æ-Lens | Unified Vision</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <meta charset="UTF-8">
+    <title>Æ-Sentry | Commercial ONNX Lens</title>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
     <style>
-        body { margin: 0; background: #000; color: #0ff; font-family: monospace; overflow: hidden; }
-        #canvas_output { width: 100vw; height: 100vh; }
-        #ui { position: absolute; top: 20px; left: 20px; background: rgba(0,20,20,0.7); padding: 10px; border: 1px solid #0ff; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: monospace; }
+        #canvas_output { width: 100vw; height: 100vh; object-fit: cover; }
+        #status { position: absolute; top: 20px; left: 20px; color: #0ff; background: rgba(0,20,20,0.8); padding: 10px; border: 1px solid #0ff; }
+        #video_input { display: none; }
     </style>
 </head>
 <body>
-    <div id="ui">Æ-LENS STATUS: ACTIVE <br> MODE: OBJECT + MOTION + HUMAN</div>
-    <video id="video_input" style="display:none" autoplay playsinline></video>
+    <div id="status">Æ-SENTRY: INITIALIZING ONNX CORE...</div>
+    <video id="video_input" autoplay playsinline></video>
     <canvas id="canvas_output"></canvas>
     <script src="script.js"></script>
 </body>
