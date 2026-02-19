@@ -7,12 +7,12 @@
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: monospace; }
         #canvas_output { width: 100vw; height: 100vh; object-fit: cover; }
-        #status { position: absolute; top: 20px; left: 20px; color: #0ff; background: rgba(0,20,20,0.8); padding: 10px; border: 1px solid #0ff; }
+        #status { position: absolute; top: 20px; left: 20px; color: #0ff; background: rgba(0,20,20,0.8); padding: 10px; border: 1px solid #0ff; z-index: 100; }
         #video_input { display: none; }
     </style>
 </head>
 <body>
-    <div id="status">Æ-SENTRY: INITIALIZING ONNX CORE...</div>
+    <div id="status">Æ-SENTRY: WAITING FOR USER... <br> <button onclick="initÆ()" style="background:#0ff; border:none; padding:10px; cursor:pointer;">START SYSTEM</button></div>
     <video id="video_input" autoplay playsinline></video>
     <canvas id="canvas_output"></canvas>
     <script src="script.js"></script>
