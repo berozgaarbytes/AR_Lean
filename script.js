@@ -8,12 +8,11 @@ let session = null;
 const MODEL_DIM = 416;
 
 async function bootSystem() {
-    status.innerText = "INITIALIZING AI CORE...";
+    status.innerText = "TUNING AI PRECISION...";
     try {
         ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/";
         session = await ort.InferenceSession.create('./yolox_nano.onnx', {
-            executionProviders: ['wasm'],
-            graphOptimizationLevel: 'all'
+            executionProviders: ['wasm']
         });
 
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -27,7 +26,7 @@ async function bootSystem() {
             renderLoop();
         };
     } catch (e) {
-        status.innerText = "CRITICAL ERROR: " + e.message;
+        status.innerText = "INIT ERROR: " + e.message;
     }
 }
 
@@ -39,13 +38,16 @@ async function renderLoop() {
     const tensor = await prepareInput(video);
     try {
         const result = await session.run({ images: tensor });
-        // Some models name the output 'output', others 'output0'. This finds it automatically.
         const outputName = session.outputNames[0];
         const outputData = result[outputName].data;
         
-        const detections = decodeRawYOLOX(outputData, canvas.width, canvas.height);
+        let detections = decodeYOLOX(outputData, canvas.width, canvas.height);
+        
+        // --- THE FIX: APPLY NON-MAXIMUM SUPPRESSION ---
+        detections = applyNMS(detections, 0.45); // 0.45 IOU threshold
+        
         drawDetections(detections);
-    } catch (e) { console.warn("Frame Syncing..."); }
+    } catch (e) { console.warn("Processing..."); }
 
     requestAnimationFrame(renderLoop);
 }
@@ -57,62 +59,78 @@ async function prepareInput(source) {
     const imgData = oCtx.getImageData(0, 0, MODEL_DIM, MODEL_DIM).data;
 
     const floatData = new Float32Array(3 * MODEL_DIM * MODEL_DIM);
-    // Standard Normalization (Dividing by 255)
     for (let i = 0; i < imgData.length / 4; i++) {
-        floatData[i] = imgData[i * 4] / 255.0; // R
-        floatData[i + MODEL_DIM * MODEL_DIM] = imgData[i * 4 + 1] / 255.0; // G
-        floatData[i + 2 * MODEL_DIM * MODEL_DIM] = imgData[i * 4 + 2] / 255.0; // B
+        floatData[i] = imgData[i * 4] / 255.0; 
+        floatData[i + MODEL_DIM * MODEL_DIM] = imgData[i * 4 + 1] / 255.0;
+        floatData[i + 2 * MODEL_DIM * MODEL_DIM] = imgData[i * 4 + 2] / 255.0;
     }
     return new ort.Tensor('float32', floatData, [1, 3, MODEL_DIM, MODEL_DIM]);
 }
 
-function decodeRawYOLOX(data, viewW, viewH) {
-    const detections = [];
-    const threshold = 0.35; 
-    
-    // YOLOX-Nano output is usually 3549 rows of 85 columns
-    // Col 0-3: Box, Col 4: Confidence, Col 5: Person
+function decodeYOLOX(data, viewW, viewH) {
+    const candidates = [];
+    const CONF_THRESHOLD = 0.5; // Increased to kill false positives
+
     for (let i = 0; i < data.length; i += 85) {
         const objScore = data[i + 4];
-        if (objScore > threshold) {
-            const clsScore = data[i + 5]; // 0 is Person
-            const finalScore = objScore * clsScore;
+        const clsScore = data[i + 5]; // 0 is Person
+        const finalScore = objScore * clsScore;
 
-            if (finalScore > threshold) {
-                // Mapping relative coordinates back to screen
-                let cx = data[i] * (viewW / MODEL_DIM);
-                let cy = data[i + 1] * (viewH / MODEL_DIM);
-                let w = data[i + 2] * (viewW / MODEL_DIM);
-                let h = data[i + 3] * (viewH / MODEL_DIM);
+        if (finalScore > CONF_THRESHOLD) {
+            let cx = data[i] * (viewW / MODEL_DIM);
+            let cy = data[i + 1] * (viewH / MODEL_DIM);
+            let w = data[i + 2] * (viewW / MODEL_DIM);
+            let h = data[i + 3] * (viewH / MODEL_DIM);
 
-                detections.push({
-                    x: cx - w/2,
-                    y: cy - h/2,
-                    w: w,
-                    h: h,
-                    score: finalScore
-                });
+            candidates.push({
+                x: cx - w / 2,
+                y: cy - h / 2,
+                w: w,
+                h: h,
+                score: finalScore
+            });
+        }
+    }
+    return candidates;
+}
+
+// --- NMS ALGORITHM: REMOVES DUPLICATE BOXES ---
+function applyNMS(boxes, iouThreshold) {
+    boxes.sort((a, b) => b.score - a.score);
+    const result = [];
+    const selected = new Array(boxes.length).fill(true);
+
+    for (let i = 0; i < boxes.length; i++) {
+        if (selected[i]) {
+            result.push(boxes[i]);
+            for (let j = i + 1; j < boxes.length; j++) {
+                if (selected[j] && calculateIOU(boxes[i], boxes[j]) > iouThreshold) {
+                    selected[j] = false;
+                }
             }
         }
     }
-    // Simple NMS: Remove overlapping boxes
-    return detections.sort((a,b) => b.score - a.score).slice(0, 5);
+    return result;
+}
+
+function calculateIOU(boxA, boxB) {
+    const xA = Math.max(boxA.x, boxB.x);
+    const yA = Math.max(boxA.y, boxB.y);
+    const xB = Math.min(boxA.x + boxA.w, boxB.x + boxB.w);
+    const yB = Math.min(boxA.y + boxA.h, boxB.y + boxB.h);
+
+    const interArea = Math.max(0, xB - xA) * Math.max(0, yB - yA);
+    const areaA = boxA.w * boxA.h;
+    const areaB = boxB.w * boxB.h;
+    return interArea / (areaA + areaB - interArea);
 }
 
 function drawDetections(detections) {
     detections.forEach(d => {
-        // High-Vis Pink for Industrial Safety
         ctx.strokeStyle = "#ff00ff";
         ctx.lineWidth = 4;
         ctx.strokeRect(d.x, d.y, d.w, d.h);
-        
         ctx.fillStyle = "#ff00ff";
-        ctx.font = "bold 16px monospace";
-        ctx.fillText(`HUMAN ${Math.round(d.score * 100)}%`, d.x + 5, d.y - 10);
-        
-        // Add a small "Target" circle in center
-        ctx.beginPath();
-        ctx.arc(d.x + d.w/2, d.y + d.h/2, 5, 0, Math.PI*2);
-        ctx.fill();
+        ctx.fillText(`HUMAN ${Math.round(d.score * 100)}%`, d.x, d.y - 10);
     });
 }
