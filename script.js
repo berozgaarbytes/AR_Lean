@@ -1,32 +1,35 @@
 const videoElement = document.getElementById('video_input');
 const canvasElement = document.getElementById('canvas_output');
 const canvasCtx = canvasElement.getContext('2d');
-const terminal = document.getElementById('terminal');
+const hud = document.getElementById('hud_overlay');
 
-let currentFacingMode = "environment"; 
+let currentFacingMode = "environment";
 let camera = null;
 let isPinching = false;
+let qrScanActive = false;
 let æInput = "";
 
-// Spatial Keyboard Config (Centered for Mobile)
+// Spatial Desktop Configuration
+const layout = {
+    browser: { label: "ACUMATICA_ERP_PORTAL", rx: 0.1, ry: 0.1, rw: 0.8, rh: 0.35, color: "#0ff" },
+    terminal: { label: "SYSTEM_LOGS", rx: 0.1, ry: 0.5, rw: 0.35, rh: 0.4, color: "#0f0" },
+    keypad: { label: "SPATIAL_INPUT", rx: 0.55, ry: 0.5, rw: 0.35, rh: 0.4, color: "#ff0" }
+};
+
 const keys = [
-    { label: "1", rx: 0.35, ry: 0.45 }, { label: "2", rx: 0.5, ry: 0.45 }, { label: "3", rx: 0.65, ry: 0.45 },
-    { label: "4", rx: 0.35, ry: 0.55 }, { label: "5", rx: 0.5, ry: 0.55 }, { label: "6", rx: 0.65, ry: 0.55 },
-    { label: "7", rx: 0.35, ry: 0.65 }, { label: "8", rx: 0.5, ry: 0.65 }, { label: "9", rx: 0.65, ry: 0.65 },
-    { label: "CLR", rx: 0.35, ry: 0.75 }, { label: "0", rx: 0.5, ry: 0.75 }, { label: "GO", rx: 0.65, ry: 0.75 }
+    { label: "1", x: 0.62, y: 0.6 }, { label: "2", x: 0.72, y: 0.6 }, { label: "3", x: 0.82, y: 0.6 },
+    { label: "4", x: 0.62, y: 0.7 }, { label: "5", x: 0.72, y: 0.7 }, { label: "6", x: 0.82, y: 0.7 },
+    { label: "7", x: 0.62, y: 0.8 }, { label: "8", x: 0.72, y: 0.8 }, { label: "9", x: 0.82, y: 0.8 },
+    { label: "ERP", x: 0.72, y: 0.88, special: true }
 ];
 
 function onResults(results) {
-    // FIX: Match canvas to visual viewport for mobile
     canvasElement.width = window.innerWidth;
     canvasElement.height = window.innerHeight;
     const w = canvasElement.width;
     const h = canvasElement.height;
 
     canvasCtx.save();
-    canvasCtx.clearRect(0, 0, w, h);
-
-    // 1. Render Reality (Camera)
     if (currentFacingMode === "user") {
         canvasCtx.translate(w, 0);
         canvasCtx.scale(-1, 1);
@@ -34,111 +37,129 @@ function onResults(results) {
     canvasCtx.drawImage(results.image, 0, 0, w, h);
     canvasCtx.restore();
 
-    // 2. Render Æ Glass Display
-    renderGlassDisplay(w, h);
+    // 1. Process QR Scanning if active
+    if (qrScanActive) scanForQR(results.image);
 
-    // 3. Render Floating Keypad
-    renderKeypad(w, h);
+    // 2. Render Æ Spatial Desktop
+    renderWindows(w, h);
+    renderKeys(w, h);
 
-    // 4. Hand Tracking & Collision
+    // 3. Hand Interaction Logic
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         const hand = results.multiHandLandmarks[0];
         const index = hand[8];
         const thumb = hand[4];
 
-        // Finger Coordinates
-        const fx = index.x * w;
-        const fy = index.y * h;
-
-        // Detect Depth/Pinch
         const pinchDist = Math.hypot(index.x - thumb.x, index.y - thumb.y);
         const active = pinchDist < 0.045;
 
-        // Draw Spatial Cursor (with Glow)
-        canvasCtx.shadowBlur = 15;
-        canvasCtx.shadowColor = active ? "#0ff" : "#fff";
-        canvasCtx.fillStyle = active ? "#0ff" : "rgba(255, 255, 255, 0.8)";
+        // Draw Spatial Pointer
+        canvasCtx.fillStyle = active ? "#0ff" : "white";
         canvasCtx.beginPath();
-        canvasCtx.arc(fx, fy, 12, 0, Math.PI * 2);
+        canvasCtx.arc(index.x * w, index.y * h, 10, 0, Math.PI * 2);
         canvasCtx.fill();
-        canvasCtx.shadowBlur = 0;
 
-        if (active) {
-            if (!isPinching) {
-                processAetherInput(index.x, index.y);
-                isPinching = true;
-            }
-        } else {
+        if (active && !isPinching) {
+            handleSpatialClick(index.x, index.y);
+            isPinching = true;
+        } else if (!active) {
             isPinching = false;
         }
     }
 }
 
-function renderGlassDisplay(w, h) {
-    canvasCtx.fillStyle = "rgba(0, 20, 20, 0.7)";
-    canvasCtx.strokeStyle = "#0ff";
-    canvasCtx.lineWidth = 3;
-    
-    // Search Bar
-    roundRect(canvasCtx, w * 0.1, h * 0.1, w * 0.8, 70, 15, true, true);
-    
-    canvasCtx.fillStyle = "#0ff";
-    canvasCtx.font = "bold 28px monospace";
-    canvasCtx.fillText(`Æ > ${æInput}`, w * 0.15, h * 0.16);
+function renderWindows(w, h) {
+    Object.values(layout).forEach(win => {
+        const x = win.rx * w; const y = win.ry * h;
+        const width = win.rw * w; const height = win.rh * h;
+
+        canvasCtx.fillStyle = "rgba(0, 10, 10, 0.85)";
+        canvasCtx.strokeStyle = win.color;
+        canvasCtx.lineWidth = 2;
+        canvasCtx.fillRect(x, y, width, height);
+        canvasCtx.strokeRect(x, y, width, height);
+
+        // Header Bar
+        canvasCtx.fillStyle = win.color;
+        canvasCtx.fillRect(x, y - 20, width, 20);
+        canvasCtx.fillStyle = "#000";
+        canvasCtx.font = "bold 10px monospace";
+        canvasCtx.fillText(win.label, x + 5, y - 7);
+    });
+
+    // ERP Content Simulation
+    canvasCtx.fillStyle = "#fff";
+    canvasCtx.font = "12px monospace";
+    canvasCtx.fillText(`ACTIVE_SESSION: ADMIN_01`, w*0.12, h*0.18);
+    canvasCtx.fillText(`INPUT_BUFFER: ${æInput}`, w*0.12, h*0.22);
 }
 
-function renderKeypad(w, h) {
-    keys.forEach(key => {
-        const kx = key.rx * w;
-        const ky = key.ry * h;
-        
-        // Button Circle
-        canvasCtx.fillStyle = "rgba(0, 255, 255, 0.1)";
-        canvasCtx.strokeStyle = "rgba(0, 255, 255, 0.5)";
+function renderKeys(w, h) {
+    keys.forEach(k => {
+        canvasCtx.strokeStyle = "#ff0";
+        canvasCtx.fillStyle = "rgba(255, 255, 0, 0.1)";
         canvasCtx.beginPath();
-        canvasCtx.arc(kx, ky, 35, 0, Math.PI * 2);
-        canvasCtx.fill();
+        canvasCtx.arc(k.x * w, k.y * h, 25, 0, Math.PI * 2);
         canvasCtx.stroke();
-        
-        // Label
-        canvasCtx.fillStyle = "#fff";
-        canvasCtx.font = "bold 20px sans-serif";
-        canvasCtx.textAlign = "center";
-        canvasCtx.fillText(key.label, kx, ky + 8);
+        canvasCtx.fill();
+        canvasCtx.fillStyle = "#ff0";
+        canvasCtx.fillText(k.label, k.x * w - 8, k.y * h + 5);
     });
 }
 
-function processAetherInput(ix, iy) {
-    keys.forEach(key => {
-        const dist = Math.hypot(ix - key.rx, iy - key.ry);
-        if (dist < 0.07) { // Interaction Radius
-            if (key.label === "GO") {
-                window.open(`https://www.google.com/search?q=${encodeURIComponent(æInput)}`, '_blank');
-            } else if (key.label === "CLR") {
-                æInput = "";
+function handleSpatialClick(ix, iy) {
+    keys.forEach(k => {
+        const dist = Math.hypot(ix - k.x, iy - k.y);
+        if (dist < 0.06) {
+            if (k.label === "ERP") {
+                window.open(`https://www.google.com/search?q=Acumatica+Entry+${æInput}`, '_blank');
             } else {
-                æInput += key.label;
+                æInput += k.label;
             }
-            if (navigator.vibrate) navigator.vibrate(40);
+            if (navigator.vibrate) navigator.vibrate(30);
         }
     });
 }
 
-// Utility for Rounded Rectangles
-function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
-    ctx.beginPath();
-    ctx.moveTo(x + radius, y);
-    ctx.lineTo(x + width - radius, y);
-    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-    ctx.lineTo(x + width, y + height - radius);
-    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-    ctx.lineTo(x + radius, y + height);
-    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-    ctx.lineTo(x, y + radius);
-    ctx.quadraticCurveTo(x, y, x + radius, y);
-    ctx.closePath();
-    if (fill) ctx.fill();
-    if (stroke) ctx.stroke();
+function scanForQR(image) {
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = image.width;
+    tempCanvas.height = image.height;
+    tempCtx.drawImage(image, 0, 0);
+    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height);
+    
+    if (code) {
+        qrScanActive = false;
+        hud.innerText = `Æ_SCAN_SUCCESS: ${code.data}`;
+        if (confirm(`Open ERP Work Order: ${code.data}?`)) {
+            window.open(code.data, '_blank');
+        }
+    }
 }
 
-// ... Camera start logic from previous responses ...
+function toggleCamera() {
+    currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
+    startCamera();
+}
+
+function toggleQR() {
+    qrScanActive = !qrScanActive;
+    hud.innerText = qrScanActive ? "Æ_STATUS: SCANNING_FOR_QR..." : "Æ_STATUS: STANDBY";
+}
+
+function startCamera() {
+    if (camera) camera.stop();
+    camera = new Camera(videoElement, {
+        onFrame: async () => { await hands.send({image: videoElement}); },
+        facingMode: currentFacingMode,
+        width: 1280, height: 720
+    });
+    camera.start();
+}
+
+const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7 });
+hands.onResults(onResults);
+startCamera();
