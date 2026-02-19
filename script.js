@@ -3,47 +3,38 @@ const canvas = document.getElementById('canvas_output');
 const ctx = canvas.getContext('2d');
 const uiLayer = document.getElementById('ui_layer');
 const statusText = document.getElementById('status_text');
-const hud = document.getElementById('hud');
 
 let session = null;
 
 async function bootSystem() {
-    statusText.innerText = "SYSTEM: ALLOCATING WASM RESOURCES...";
+    statusText.innerText = "LOADING AI ENGINE...";
     
     try {
-        // 1. Point to the WASM worker files on the CDN
-        ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
+        // 1. FORCE THE PATH (This fixes the "Initializing" hang)
+        ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.1/dist/";
 
-        // 2. Load Model (Make sure yolox_nano.onnx is in your GitHub folder!)
+        // 2. LOAD MODEL (Make sure the name is exactly yolox_nano.onnx)
         session = await ort.InferenceSession.create('./yolox_nano.onnx', {
-            executionProviders: ['wasm'],
-            graphOptimizationLevel: 'all'
+            executionProviders: ['wasm']
         });
 
-        statusText.innerText = "SYSTEM: ACQUIRING OPTICAL FEED...";
+        statusText.innerText = "ACQUIRING BACK CAMERA...";
         
-        // 3. Trigger Camera (Must be done inside a user-click event!)
+        // 3. START CAMERA
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: { 
-                facingMode: 'environment', // BACK CAMERA
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
-            },
-            audio: false
+            video: { facingMode: 'environment' }
         });
 
         video.srcObject = stream;
         video.onloadedmetadata = () => {
             video.play();
-            // Hide the boot screen and show the HUD
-            uiLayer.style.display = 'none';
-            hud.style.display = 'block';
+            uiLayer.style.display = 'none'; // Hide the black screen
             renderLoop();
         };
 
     } catch (err) {
-        statusText.innerHTML = `<span style="color:red">BOOT_FAILURE: ${err.message}</span><br>Check if HTTPS is enabled.`;
-        console.error(err);
+        statusText.innerHTML = `<b style="color:red">ERROR:</b> ${err.message}<br><small>Ensure you are using HTTPS</small>`;
+        console.error("ORT Error:", err);
     }
 }
 
@@ -51,34 +42,19 @@ function renderLoop() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     
-    // Draw Camera Feed
+    // Draw Camera feed to screen
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // --- AR OVERLAY ---
-    drawSentryHUD();
+    // Simple HUD overlay to prove it's working
+    drawHUD();
 
     requestAnimationFrame(renderLoop);
 }
 
-function drawSentryHUD() {
-    const w = canvas.width;
-    const h = canvas.height;
-
-    // Scanline effect
-    const scanY = (Date.now() / 15) % h;
-    ctx.strokeStyle = "rgba(0, 255, 255, 0.2)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, scanY);
-    ctx.lineTo(w, scanY);
-    ctx.stroke();
-
-    // Corner brackets
+function drawHUD() {
     ctx.strokeStyle = "#0ff";
-    ctx.lineWidth = 3;
-    const bSize = 40;
-    // Top Left
-    ctx.beginPath(); ctx.moveTo(50, 50+bSize); ctx.lineTo(50, 50); ctx.lineTo(50+bSize, 50); ctx.stroke();
-    // Top Right
-    ctx.beginPath(); ctx.moveTo(w-50-bSize, 50); ctx.lineTo(w-50, 50); ctx.lineTo(w-50, 50+bSize); ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+    ctx.fillStyle = "#0ff";
+    ctx.fillText("Æ-SENTRY LIVE // AI ACTIVE", 30, 40);
 }
