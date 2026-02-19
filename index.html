@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AetherInterface | Æ</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+        #controls { position: absolute; top: 20px; left: 20px; z-index: 10; display: flex; gap: 10px; }
+        button { background: rgba(0, 255, 255, 0.2); border: 1px solid #0ff; color: #0ff; padding: 10px 20px; cursor: pointer; backdrop-filter: blur(5px); }
+        #video_input { display: none; }
+        #canvas_output { width: 100vw; height: 100vh; }
+        #terminal { position: absolute; bottom: 20px; left: 20px; color: #0f0; font-family: monospace; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <button onclick="toggleCamera()">🔄 Switch Camera</button>
+        <button onclick="window.location.reload()">♻️ Reset System</button>
+    </div>
+    <div id="terminal">Æ System Initializing...</div>
+    <video id="video_input" playsinline></video>
+    <canvas id="canvas_output"></canvas>
+    <script src="script.js"></script>
+</body>
+</html>
