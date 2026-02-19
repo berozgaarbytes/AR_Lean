@@ -1,65 +1,64 @@
 const video = document.getElementById('video_input');
 const canvas = document.getElementById('canvas_output');
 const ctx = canvas.getContext('2d');
+const status = document.getElementById('status');
 
-let model;
-let lastFrame;
+let session;
 
-// Initialize Detection
-async function init() {
-    // Loading COCO-SSD (Apache 2.0) which uses a MobileNet/YOLO-style backbone
-    model = await cocoSsd.load();
-    setupCamera();
+async function initÆ() {
+    try {
+        // 1. Load the ONNX Model from your repo
+        // This expects yolox_nano.onnx to be in the same folder
+        session = await ort.InferenceSession.create('./yolox_nano.onnx', {
+            executionProviders: ['wasm'], // Optimized for CPU
+            graphOptimizationLevel: 'all'
+        });
+        
+        status.innerText = "Æ-SENTRY: MODEL LOADED. STARTING LENS...";
+        startCamera();
+    } catch (e) {
+        status.innerText = "ERROR: " + e.message;
+    }
 }
 
-function setupCamera() {
+function startCamera() {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
         .then(stream => {
             video.srcObject = stream;
-            video.onloadedmetadata = () => { predict(); };
+            video.onloadedmetadata = () => {
+                renderLoop();
+            };
         });
 }
 
-async function predict() {
+async function renderLoop() {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-
-    // 1. MOTION DETECTION (The "Cheap" Way)
+    
+    // Draw camera frame
     ctx.drawImage(video, 0, 0);
-    const currentFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    
-    if (lastFrame) {
-        detectMotion(lastFrame, currentFrame);
-    }
-    lastFrame = currentFrame;
 
-    // 2. HUMAN/OBJECT DETECTION (YOLOX-style Logic)
-    // We run this every 5th frame to save CPU
-    const predictions = await model.detect(video);
-    
-    predictions.forEach(p => {
-        // Draw the "Smart" HUD
-        ctx.strokeStyle = p.class === 'person' ? '#ff00ff' : '#00ffff';
-        ctx.lineWidth = 4;
-        ctx.strokeRect(...p.bbox);
-        
-        ctx.fillStyle = p.class === 'person' ? '#ff00ff' : '#00ffff';
-        ctx.font = "bold 18px monospace";
-        ctx.fillText(`${p.class.toUpperCase()} [${Math.round(p.score*100)}%]`, p.bbox[0], p.bbox[1] - 10);
-    });
+    // 2. Prepare Input for YOLOX
+    // YOLOX-Nano usually expects 416x416 or 640x640
+    const inputData = prepareInput(video);
+    const tensor = new ort.Tensor('float32', inputData, [1, 3, 416, 416]);
 
-    requestAnimationFrame(predict);
+    // 3. Run Inference
+    const output = await session.run({ images: tensor });
+    
+    // 4. Draw Results (Boxes & Labels)
+    processOutput(output);
+
+    requestAnimationFrame(renderLoop);
 }
 
-function detectMotion(oldImg, newImg) {
-    // Simple pixel delta to find movement
-    for (let i = 0; i < oldImg.data.length; i += 400) { // Sample pixels for speed
-        const diff = Math.abs(oldImg.data[i] - newImg.data[i]);
-        if (diff > 50) {
-            ctx.fillStyle = "rgba(0, 255, 0, 0.2)";
-            ctx.fillRect((i/4) % canvas.width, Math.floor((i/4) / canvas.width), 20, 20);
-        }
-    }
+// Logic to resize and normalize video frames for the AI
+function prepareInput(v) {
+    // Simplified: In a real demo, use an offscreen canvas to resize to 416x416
+    // and return a Float32Array of RGB values normalized (0-1)
+    const data = new Float32Array(1 * 3 * 416 * 416); 
+    // ... normalization logic goes here ...
+    return data;
 }
 
-init();
+initÆ();
