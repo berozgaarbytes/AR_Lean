@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OmniV | Unified WIP Auditor</title>
+    <title>OmniV | WIP Unified Auditor</title>
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/ort.min.js"></script>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: #0ff; }
         #canvas_output { width: 100vw; height: 100vh; object-fit: cover; }
         #video_input { display: none; }
-        #ui_overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; background: #000; }
+        #boot_layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; background: #000; }
         .btn-boot { background: rgba(0,255,255,0.1); border: 2px solid #0ff; color: #0ff; padding: 25px 50px; font-size: 20px; font-weight: bold; border-radius: 12px; cursor: pointer; }
-        #console { margin-top: 20px; font-size: 11px; text-align: center; width: 80%; color: #0ff; opacity: 0.8; }
+        #console { margin-top: 20px; font-size: 11px; text-align: center; width: 80%; }
     </style>
 </head>
 <body>
-    <div id="ui_overlay">
+    <div id="boot_layer">
         <button id="btn_init" class="btn-boot">ACTIVATE OmniV LENS</button>
-        <div id="console">SYSTEM: STANDBY<br>READY FOR SHOP FLOOR AUDIT</div>
+        <div id="console">OmniV v3.0 | 80-CLASS + VIBROMETRY<br>STATUS: STANDBY</div>
     </div>
     <video id="video_input" autoplay playsinline muted></video>
     <canvas id="canvas_output"></canvas>
