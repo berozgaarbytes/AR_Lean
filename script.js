@@ -16,19 +16,19 @@ document.addEventListener('DOMContentLoaded', () => {
     btnInit.addEventListener('touchstart', (e) => { e.preventDefault(); boot(); });
 
     async function boot() {
-        consoleLog.innerText = "STATUS: LOCKING SENSORS...";
+        consoleLog.innerText = "STATUS: INITIALIZING CAMERA...";
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
             video.srcObject = stream;
             await video.play();
 
-            consoleLog.innerText = "STATUS: MOUNTING OmniV CORE...";
+            consoleLog.innerText = "STATUS: LOADING OmniV CORE...";
             ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/";
             session = await ort.InferenceSession.create('./yolox_nano.onnx', { executionProviders: ['wasm'] });
             
             uiOverlay.style.display = 'none';
             renderLoop();
-        } catch (e) { consoleLog.innerText = "ERR: " + e.message; }
+        } catch (e) { consoleLog.innerText = "ERROR: " + e.message; }
     }
 
     function renderLoop() {
@@ -44,12 +44,17 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const tensor = await prepareInput(video);
             const result = await session.run({ images: tensor });
-            const output = result[session.outputNames[0]].data;
+            const outputName = session.outputNames[0];
+            const output = result[outputName].data;
             
-            // UNIVERSAL DECODER: Handles both Flat and Transposed YOLOX exports
-            let dets = (output.length === 85 * 3549) ? decodeYOLOX(output) : [];
+            // DETECT OUTPUT FORMAT AUTOMATICALLY
+            let dets = [];
+            if (output.length === 3549 * 85) {
+                dets = decodeStandard(output);
+            } else {
+                dets = decodeTransposed(output);
+            }
             
-            // NMS: This fixes your "Multiple Bounding Box" issue from yesterday
             dets = nms(dets, 0.45);
             
             dets.forEach(d => {
@@ -57,40 +62,59 @@ document.addEventListener('DOMContentLoaded', () => {
                 const brightness = (patch[0]+patch[1]+patch[2])/3;
                 vibroBuffer.push(brightness); vibroBuffer.shift();
                 
-                const variance = getVariance();
-                d.mass = variance > 12 ? "LIGHT/HOLLOW" : "HEAVY/FULL";
+                const avg = vibroBuffer.reduce((a,b)=>a+b)/60;
+                const variance = vibroBuffer.reduce((a,b)=>a+Math.pow(b-avg,2),0);
+                d.mass = variance > 12 ? "LOW_DENSITY" : "HIGH_DENSITY";
                 d.vol = Math.round((d.w * d.h * ((d.w+d.h)/2)) / 15000);
                 
                 drawHUD(d);
             });
-        } catch (e) {}
+        } catch (e) { }
     }
 
-    function decodeYOLOX(data) {
+    // Standard Decoder: [3549, 85]
+    function decodeStandard(data) {
         const boxes = [];
-        const viewW = canvas.width, viewH = canvas.height;
         for (let i = 0; i < 3549; i++) {
-            const idx = i * 85;
-            const score = data[idx + 4];
-            if (score > 0.4) {
-                let max=0, id=0; for(let c=0; c<80; c++) if(data[idx+5+c]>max){max=data[idx+5+c]; id=c;}
-                if (score * max > 0.4) {
-                    let cx = data[idx], cy = data[idx+1], w = data[idx+2], h = data[idx+3];
-                    if (w <= 1.0) { cx *= 416; cy *= 416; w *= 416; h *= 416; } // Norm fix
-                    boxes.push({ x:(cx-w/2)*(viewW/416), y:(cy-h/2)*(viewH/416), w:w*(viewW/416), h:h*(viewH/416), score:score*max, label:CLASSES[id] });
+            const row = i * 85;
+            const score = data[row + 4];
+            if (score > 0.3) {
+                let max = 0, id = 0;
+                for (let c = 0; c < 80; c++) if (data[row+5+c] > max) { max = data[row+5+c]; id = c; }
+                if (score * max > 0.35) {
+                    processBox(data[row], data[row+1], data[row+2], data[row+3], score * max, id, boxes);
                 }
             }
         }
         return boxes;
     }
 
-    function getVariance() {
-        const avg = vibroBuffer.reduce((a,b)=>a+b)/60;
-        return vibroBuffer.reduce((a,b)=>a+Math.pow(b-avg,2),0);
+    // Transposed Decoder: [85, 3549]
+    function decodeTransposed(data) {
+        const boxes = [];
+        for (let i = 0; i < 3549; i++) {
+            const score = data[4 * 3549 + i] * data[5 * 3549 + i];
+            if (score > 0.35) {
+                processBox(data[0*3549+i], data[1*3549+i], data[2*3549+i], data[3*3549+i], score, 0, boxes);
+            }
+        }
+        return boxes;
+    }
+
+    function processBox(cx, cy, w, h, score, id, boxes) {
+        if (w <= 1.0) { cx *= 416; cy *= 416; w *= 416; h *= 416; }
+        boxes.push({
+            x: (cx - w/2) * (canvas.width / 416),
+            y: (cy - h/2) * (canvas.height / 416),
+            w: w * (canvas.width / 416),
+            h: h * (canvas.height / 416),
+            score: score,
+            label: CLASSES[id]
+        });
     }
 
     function drawHUD(d) {
-        ctx.strokeStyle = d.mass.includes("HEAVY") ? "#0f0" : "#f0f";
+        ctx.strokeStyle = d.mass.includes("HIGH") ? "#0f0" : "#f0f";
         ctx.lineWidth = 4;
         ctx.strokeRect(d.x, d.y, d.w, d.h);
         ctx.fillStyle = "rgba(0,0,0,0.8)";
@@ -98,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillStyle = "#fff";
         ctx.font = "bold 12px monospace";
         ctx.fillText(`${d.label.toUpperCase()} | VOL: ${d.vol}`, d.x+5, d.y-30);
-        ctx.fillStyle = d.mass.includes("HEAVY") ? "#0f0" : "#f0f";
+        ctx.fillStyle = d.mass.includes("HIGH") ? "#0f0" : "#f0f";
         ctx.fillText(`MASS: ${d.mass}`, d.x+5, d.y-10);
     }
 
