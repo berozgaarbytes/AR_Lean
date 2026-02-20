@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OmniV | WIP Unified Auditor</title>
+    <title>OmniV | WIP Auditor Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/ort.min.js"></script>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: #0ff; }
@@ -11,13 +11,13 @@
         #video_input { display: none; }
         #ui_overlay { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; background: #000; }
         .btn-boot { background: rgba(0,255,255,0.1); border: 2px solid #0ff; color: #0ff; padding: 25px 50px; font-size: 20px; font-weight: bold; border-radius: 12px; cursor: pointer; }
-        #console { margin-top: 20px; font-size: 11px; text-align: center; width: 80%; color: #0ff; }
+        #console { margin-top: 20px; font-size: 11px; text-align: center; width: 80%; color: #0ff; line-height: 1.4; }
     </style>
 </head>
 <body>
     <div id="ui_overlay">
         <button id="btn_init" class="btn-boot">ACTIVATE OmniV LENS</button>
-        <div id="console">OmniV v4.0 | STATUS: STANDBY</div>
+        <div id="console">OmniV v5.0 | IOS_SAFARI_STABLE<br>STATUS: STANDBY</div>
     </div>
     <video id="video_input" autoplay playsinline muted></video>
     <canvas id="canvas_output"></canvas>
