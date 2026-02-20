@@ -12,133 +12,105 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const CLASSES = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'];
 
-    btnInit.addEventListener('click', bootSequence);
-    btnInit.addEventListener('touchstart', (e) => { e.preventDefault(); bootSequence(); });
+    btnInit.addEventListener('click', boot);
+    btnInit.addEventListener('touchstart', (e) => { e.preventDefault(); boot(); });
 
-    async function bootSequence() {
-        consoleLog.innerText = "STATUS: SECURING CAMERA...";
+    async function boot() {
+        consoleLog.innerText = "STATUS: LOCKING SENSORS...";
         try {
-            // iOS Safari: Must get camera first to lock the user-gesture
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } } 
-            });
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
             video.srcObject = stream;
             await video.play();
 
-            consoleLog.innerText = "STATUS: COMPILING AI BRAIN...";
+            consoleLog.innerText = "STATUS: MOUNTING OmniV CORE...";
             ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/";
-            
-            // RELATIVE PATH: Ensure yolox_nano.onnx is exactly in your root git folder
             session = await ort.InferenceSession.create('./yolox_nano.onnx', { executionProviders: ['wasm'] });
             
             uiOverlay.style.display = 'none';
             renderLoop();
-        } catch (e) { consoleLog.innerText = "CRITICAL ERROR: " + e.message; }
+        } catch (e) { consoleLog.innerText = "ERR: " + e.message; }
     }
 
     function renderLoop() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-        runAuditPipeline();
+        runAudit();
         requestAnimationFrame(renderLoop);
     }
 
-    async function runAuditPipeline() {
+    async function runAudit() {
         if (!session) return;
         try {
             const tensor = await prepareInput(video);
-            
-            // SELF-IDENTIFYING RUN
             const result = await session.run({ images: tensor });
-            const outputName = session.outputNames[0]; // Finds the output dynamically
-            const outputData = result[outputName].data;
+            const output = result[session.outputNames[0]].data;
             
-            let dets = decodeYOLOX(outputData, canvas.width, canvas.height);
+            // UNIVERSAL DECODER: Handles both Flat and Transposed YOLOX exports
+            let dets = (output.length === 85 * 3549) ? decodeYOLOX(output) : [];
+            
+            // NMS: This fixes your "Multiple Bounding Box" issue from yesterday
             dets = nms(dets, 0.45);
             
             dets.forEach(d => {
-                // VISUAL VIBROMETRY (PAMI 2016)
-                auditMass(d);
+                const patch = ctx.getImageData(d.x + d.w/2, d.y + d.h/2, 2, 2).data;
+                const brightness = (patch[0]+patch[1]+patch[2])/3;
+                vibroBuffer.push(brightness); vibroBuffer.shift();
+                
+                const variance = getVariance();
+                d.mass = variance > 12 ? "LIGHT/HOLLOW" : "HEAVY/FULL";
+                d.vol = Math.round((d.w * d.h * ((d.w+d.h)/2)) / 15000);
+                
                 drawHUD(d);
             });
-        } catch (e) { /* Skipping frame */ }
+        } catch (e) {}
     }
 
-    function decodeYOLOX(data, vW, vH) {
+    function decodeYOLOX(data) {
         const boxes = [];
-        const threshold = 0.35; // Sensitivity floor
-        
-        // YOLOX-Nano usually outputs [1, 3549, 85]
-        for (let i = 0; i < data.length; i += 85) {
-            const objScore = data[i+4];
-            if (objScore > threshold) {
-                let max=0, id=0; 
-                for(let c=0; c<80; c++) { 
-                    if(data[i+5+c]>max){ max=data[i+5+c]; id=c; } 
-                }
-                
-                if (objScore * max > threshold) {
-                    let cx = data[i], cy = data[i+1], w = data[i+2], h = data[i+3];
-                    
-                    // AUTO-NORMALIZATION FIX
-                    // If your model outputs 0.0-1.0 coords, scale them to 416
-                    if (w <= 1.0) { cx *= MODEL_DIM; cy *= MODEL_DIM; w *= MODEL_DIM; h *= MODEL_DIM; }
-
-                    boxes.push({
-                        x: (cx - w/2) * (vW / MODEL_DIM),
-                        y: (cy - h/2) * (vH / MODEL_DIM),
-                        w: w * (vW / MODEL_DIM),
-                        h: h * (vH / MODEL_DIM),
-                        score: objScore * max,
-                        label: CLASSES[id]
-                    });
+        const viewW = canvas.width, viewH = canvas.height;
+        for (let i = 0; i < 3549; i++) {
+            const idx = i * 85;
+            const score = data[idx + 4];
+            if (score > 0.4) {
+                let max=0, id=0; for(let c=0; c<80; c++) if(data[idx+5+c]>max){max=data[idx+5+c]; id=c;}
+                if (score * max > 0.4) {
+                    let cx = data[idx], cy = data[idx+1], w = data[idx+2], h = data[idx+3];
+                    if (w <= 1.0) { cx *= 416; cy *= 416; w *= 416; h *= 416; } // Norm fix
+                    boxes.push({ x:(cx-w/2)*(viewW/416), y:(cy-h/2)*(viewH/416), w:w*(viewW/416), h:h*(viewH/416), score:score*max, label:CLASSES[id] });
                 }
             }
         }
         return boxes;
     }
 
-    function auditMass(d) {
-        // Extract micro-motion intensity (PAMI 2016)
-        const patch = ctx.getImageData(d.x + d.w/2, d.y + d.h/2, 2, 2).data;
-        const b = (patch[0]+patch[1]+patch[2])/3;
-        vibroBuffer.push(b); vibroBuffer.shift();
-        
+    function getVariance() {
         const avg = vibroBuffer.reduce((a,b)=>a+b)/60;
-        const variance = vibroBuffer.reduce((a,b)=>a+Math.pow(b-avg,2),0);
-        
-        // Industrial Mass Logic
-        d.mass = variance > 12 ? "LOW_DENSITY (EMPTY)" : "HIGH_DENSITY (LOADED)";
-        d.vol = Math.round((d.w * d.h * ((d.w+d.h)/2)) / 15000);
+        return vibroBuffer.reduce((a,b)=>a+Math.pow(b-avg,2),0);
     }
 
     function drawHUD(d) {
-        ctx.strokeStyle = d.mass.includes("HIGH") ? "#0f0" : "#f0f";
+        ctx.strokeStyle = d.mass.includes("HEAVY") ? "#0f0" : "#f0f";
         ctx.lineWidth = 4;
         ctx.strokeRect(d.x, d.y, d.w, d.h);
-        
-        // Data Window
         ctx.fillStyle = "rgba(0,0,0,0.8)";
-        ctx.fillRect(d.x, d.y - 55, 200, 55);
-        ctx.fillStyle = "#0ff";
-        ctx.font = "bold 13px monospace";
-        ctx.fillText(`ID: ${d.label.toUpperCase()}`, d.x+5, d.y-38);
-        ctx.fillText(`VOL: ${d.vol} m3(rel)`, d.x+5, d.y-23);
-        ctx.fillStyle = d.mass.includes("HIGH") ? "#0f0" : "#f0f";
-        ctx.fillText(`MASS: ${d.mass}`, d.x+5, d.y-8);
+        ctx.fillRect(d.x, d.y - 50, 180, 50);
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 12px monospace";
+        ctx.fillText(`${d.label.toUpperCase()} | VOL: ${d.vol}`, d.x+5, d.y-30);
+        ctx.fillStyle = d.mass.includes("HEAVY") ? "#0f0" : "#f0f";
+        ctx.fillText(`MASS: ${d.mass}`, d.x+5, d.y-10);
     }
 
     async function prepareInput(src) {
-        const c = document.createElement('canvas'); c.width=MODEL_DIM; c.height=MODEL_DIM;
-        c.getContext('2d').drawImage(src, 0, 0, MODEL_DIM, MODEL_DIM);
-        const d = c.getContext('2d').getImageData(0,0,MODEL_DIM,MODEL_DIM).data;
-        const f = new Float32Array(3 * MODEL_DIM**2);
+        const c = document.createElement('canvas'); c.width=416; c.height=416;
+        c.getContext('2d').drawImage(src,0,0,416,416);
+        const d = c.getContext('2d').getImageData(0,0,416,416).data;
+        const f = new Float32Array(3 * 416**2);
         for(let i=0; i<d.length/4; i++) {
-            f[i]=d[i*4]/255; f[i+MODEL_DIM**2]=d[i*4+1]/255; f[i+2*MODEL_DIM**2]=d[i*4+2]/255;
+            f[i]=d[i*4]/255; f[i+416**2]=d[i*4+1]/255; f[i+2*416**2]=d[i*4+2]/255;
         }
-        return new ort.Tensor('float32', f, [1, 3, MODEL_DIM, MODEL_DIM]);
+        return new ort.Tensor('float32', f, [1, 3, 416, 416]);
     }
 
     function nms(b, l) {
@@ -146,9 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const r = []; const s = new Array(b.length).fill(false);
         for(let i=0; i<b.length; i++) {
             if(s[i]) continue; r.push(b[i]);
-            for(let j=i+1; j<b.length; j++) {
-                if(!s[j] && iou(b[i], b[j]) > l) s[j] = true;
-            }
+            for(let j=i+1; j<b.length; j++) if(!s[j] && iou(b[i], b[j])>l) s[j]=true;
         }
         return r;
     }
